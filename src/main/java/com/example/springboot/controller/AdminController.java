@@ -7,22 +7,17 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.springboot.common.Constant;
 import com.example.springboot.common.PageQuery;
 import com.example.springboot.common.R;
-import com.example.springboot.domain.dto.CarouselDTO;
-import com.example.springboot.domain.dto.CommunityDTO;
-import com.example.springboot.domain.dto.LoginDTO;
-import com.example.springboot.domain.dto.PageDTO;
+import com.example.springboot.domain.dto.*;
 import com.example.springboot.domain.pojo.Carousel;
 import com.example.springboot.domain.pojo.Community;
 import com.example.springboot.domain.pojo.SUser;
+import com.example.springboot.domain.pojo.UserRole;
 import com.example.springboot.domain.query.CommunityQuery;
 import com.example.springboot.domain.query.MessageQuery;
 import com.example.springboot.domain.query.UserQuery;
 import com.example.springboot.domain.vo.MessageVO;
 import com.example.springboot.security.MyUserDetailServiceImpl;
-import com.example.springboot.service.CarouselService;
-import com.example.springboot.service.CommunityService;
-import com.example.springboot.service.MessageService;
-import com.example.springboot.service.UserService;
+import com.example.springboot.service.*;
 import com.example.springboot.utils.BeanUtils;
 import com.example.springboot.utils.CollUtils;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +44,8 @@ public class AdminController {
     private final MessageService messageService;
 
     private final CarouselService carouselService;
+
+    private final UserRoleService userRoleService;
 
     private static final String ROLE_ADMIN = "ROLE_admin";
 
@@ -301,5 +298,33 @@ public class AdminController {
         return R.ok().put("carousel",carousel);
     }
 
+
+    /**
+     * 添加管理员
+     */
+    @PostMapping("/addAdmin")
+    public R addAdmin(AdminDTO dto){
+        SUser user = new SUser();
+        user.setUsername(dto.getUsername());
+        user.setPassword(bcryptPasswordEncoder.encode(LOAD_PASS));
+        user.setAvater(null);
+        user.setStudentId(null);
+        user.setClassName(null);
+        user.setPhone(dto.getPhone());
+        user.setRemark(null);
+        user.setCommunityId(null);
+        boolean save = userService.save(user);
+        if (!save){
+            return R.error("系统错误！！！");
+        }
+        UserRole userRole = new UserRole();
+        userRole.setUserId(user.getId());
+        userRole.setRoleId(1);
+        int insert = userRoleService.getBaseMapper().insert(userRole);
+        if (insert <= 0){
+            return R.error("系统错误！！！");
+        }
+        return R.ok();
+    }
 
 }
