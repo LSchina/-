@@ -21,4 +21,6 @@ public class MessageVO {
 
     private String communityName;
 
+    private String image;
+
 }

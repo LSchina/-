@@ -100,7 +100,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
         Page<Message> page = lambdaQuery()
                 .like(Message::getTitle, query.getTitle())
                 .eq(Message::getType, 0)
-                .page(query.toMpPage("create_time", false));
+                .page(query.toMpPageDefaultSortByCreateTimeDesc());
         List<Message> records = page.getRecords();
         if (CollUtils.isEmpty(records)) {
             PageDTO.empty(page);
@@ -238,6 +238,33 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
             messageList.add(vo);
         }
         return PageDTO.of(page, messageList);
+    }
+
+    @Override
+    public PageDTO<MessageVO> adminNotice(MessageQuery query) {
+        Page<Message> page = lambdaQuery()
+                .like(Message::getTitle, query.getTitle())
+                .eq(Message::getType, query.getType())
+                .page(query.toMpPageDefaultSortByCreateTimeDesc());
+        List<Message> records = page.getRecords();
+        if (CollUtils.isEmpty(records)) {
+            PageDTO.empty(page);
+        }
+        Set<Integer> collect = records
+                .stream()
+                .map(Message::getCommunityId)
+                .collect(Collectors.toSet());
+        List<Community> communities = communityService.listByIds(collect);
+        Map<Integer, String> comMap = communities
+                .stream()
+                .collect(Collectors.toMap(Community::getId, item -> item.getName()));
+        List<MessageVO> voList = new ArrayList<>();
+        for (Message record : records) {
+            MessageVO vo = BeanUtils.copyBean(record, MessageVO.class);
+            voList.add(vo);
+            vo.setCommunityName(comMap.get(record.getCommunityId()));
+        }
+        return PageDTO.of(page,voList);
     }
 }
 

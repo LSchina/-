@@ -7,10 +7,13 @@ import com.example.springboot.domain.dto.MessageDTO;
 import com.example.springboot.domain.dto.NoticeDTO;
 import com.example.springboot.domain.dto.PageDTO;
 import com.example.springboot.domain.pojo.Message;
+import com.example.springboot.domain.pojo.SUser;
 import com.example.springboot.domain.query.CommunityQuery;
 import com.example.springboot.domain.query.MessageQuery;
 import com.example.springboot.domain.vo.MessageVO;
 import com.example.springboot.service.MessageService;
+import com.example.springboot.service.UserService;
+import com.example.springboot.utils.BeanUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.annotations.Delete;
@@ -31,6 +34,8 @@ public class MessageController {
 
     private final MessageService messageService;
 
+    private final UserService userService;
+
     @GetMapping("/list")
     public R messageList(){
         return R.ok().put("list",messageService.list());
@@ -44,7 +49,6 @@ public class MessageController {
 
     @PostMapping("/query")
     public R messageQuery(MessageQuery query){
-        log.info("{}",query.getPageNo(),query.getPageSize(),query.getTitle());
         PageDTO<MessageVO> messagePage = messageService.messagePage(query);
         return R.ok().put("pageList",messagePage);
     }
@@ -88,6 +92,11 @@ public class MessageController {
         return R.ok();
     }
 
+    /**
+     * 获取信息详情
+     * @param id
+     * @return
+     */
     @PostMapping("/getIntro/{id}")
     public R getIntro(@PathVariable Long id){
         Message message = messageService.getById(id);
@@ -121,6 +130,19 @@ public class MessageController {
     public R getNew(@PathVariable Long id){
         Message message = messageService.getById(id);
         return R.ok().put("message",message);
+    }
+
+    /**
+     * 获取动态详情
+     */
+    @GetMapping("/detail/{id}")
+    public R detail(@PathVariable Long id){
+        Message message = messageService.getById(id);
+        SUser user = userService.getById(message.getUserId());
+        MessageVO messageVO = BeanUtils.copyBean(message, MessageVO.class);
+        messageVO.setUsername(user.getUsername());
+        messageVO.setAvater(user.getAvater());
+        return R.ok().put("message",messageVO);
     }
 
 }

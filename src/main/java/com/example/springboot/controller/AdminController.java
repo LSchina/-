@@ -2,24 +2,22 @@ package com.example.springboot.controller;
 
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.springboot.common.Constant;
 import com.example.springboot.common.PageQuery;
 import com.example.springboot.common.R;
 import com.example.springboot.domain.dto.*;
-import com.example.springboot.domain.pojo.Carousel;
-import com.example.springboot.domain.pojo.Community;
-import com.example.springboot.domain.pojo.SUser;
-import com.example.springboot.domain.pojo.UserRole;
+import com.example.springboot.domain.pojo.*;
 import com.example.springboot.domain.query.CommunityQuery;
 import com.example.springboot.domain.query.MessageQuery;
 import com.example.springboot.domain.query.UserQuery;
+import com.example.springboot.domain.vo.ActivityVO;
 import com.example.springboot.domain.vo.MessageVO;
 import com.example.springboot.security.MyUserDetailServiceImpl;
 import com.example.springboot.service.*;
 import com.example.springboot.utils.BeanUtils;
 import com.example.springboot.utils.CollUtils;
+import com.example.springboot.utils.UserContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -27,8 +25,11 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
-import java.util.List;
-import java.util.UUID;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @RestController
@@ -38,6 +39,10 @@ public class AdminController {
     private final UserService userService;
 
     private final MyUserDetailServiceImpl myUserDetailService;
+
+    private final ActivityService activityService;
+
+    private final ActivityUserService activityUserService;
 
     private final CommunityService communityService;
 
@@ -51,6 +56,7 @@ public class AdminController {
 
     private static final String LOAD_PASS = "123";
 
+    private final MessageRecordService messageRecordService;
 
     @Autowired
     BCryptPasswordEncoder bcryptPasswordEncoder;
@@ -325,6 +331,142 @@ public class AdminController {
             return R.error("系统错误！！！");
         }
         return R.ok();
+    }
+
+    /**
+     * 数据分析数据
+     * 社团,人数
+     */
+    @GetMapping("/chartTwo")
+    public R chartTwo(){
+        List<String> name = new ArrayList<>();
+        List<Integer> num = new ArrayList<>();
+        List<Community> list = communityService.list();
+        for (Community community : list) {
+            name.add(community.getName());
+            num.add(community.getNumber());
+        }
+        return R.ok().put("name",name).put("num",num);
+    }
+
+    @PostMapping("/notice")
+    public R noticeList(MessageQuery query){
+        PageDTO<MessageVO> page = messageService.adminNotice(query);
+        return R.ok().put("page",page);
+    }
+
+    @DeleteMapping("/notice/delete/{id}")
+    public R deleteNotice(@PathVariable Long id){
+        boolean b = messageService.removeById(id);
+        if (!b){
+            return R.error("系统错误！！！");
+        }
+        return R.ok();
+    }
+
+    @GetMapping("/index")
+    public R index(){
+        Integer count = messageService.lambdaQuery().eq(Message::getType, 0).count();
+        Integer count1 = messageService.lambdaQuery().eq(Message::getType, 2).count();
+        Integer count2 = messageService.lambdaQuery().eq(Message::getType, 1).count();
+        List<Integer> list = new ArrayList<>();
+        list.add(count);
+        list.add(count1);
+        list.add(count2);
+        return R.ok().put("list",list);
+    }
+
+    /**
+     * 近七天的动态回复情况
+     */
+    @GetMapping("/count")
+    public R count(){
+        int num = 7;
+        List<Integer> count = new ArrayList<>();
+        List<String> date = new ArrayList<>();
+        LocalDate now1 = LocalDate.now();
+        for (int i = 0; i < num; i++) {
+            Integer count1 = messageRecordService.lambdaQuery()
+                    .lt(MessageRecord::getCreateTime, now1.plus(1L, ChronoUnit.DAYS))
+                    .gt(MessageRecord::getCreateTime, now1)
+                    .count();
+            count.add(count1);
+            date.add(now1.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
+            now1 = now1.minusDays(1);
+        }
+        return R.ok().put("count",count).put("date",date);
+    }
+
+    @PostMapping("/activity")
+    public R activityQuery(MessageQuery query){
+        Page<Activity> page = activityService
+                .lambdaQuery()
+                .like(Activity::getTitle, query.getTitle())
+                .page(query.toMpPageDefaultSortByCreateTimeDesc());
+        List<Activity> records = page.getRecords();
+        if (CollUtils.isEmpty(records)){
+            return R.ok().put("page",PageDTO.empty(page));
+        }
+        return R.ok().put("page",PageDTO.of(page,records));
+    }
+
+    @PostMapping("/addActivity")
+    public R addActivity(@RequestPart("file") MultipartFile file, ActivityDTO dto){
+        String originalFilename = file.getOriginalFilename();
+        String type = originalFilename.substring(originalFilename.lastIndexOf("."));
+        String fileName = UUID.randomUUID() + type;
+        File target = new File(Constant.IMAGE_STATIC);
+        if (!target.exists()) {
+            target.mkdirs();
+        }
+        File saveFile = new File(target, fileName);
+        try {
+            file.transferTo(saveFile);
+            String image = Constant.IMAGE_URL + fileName;
+            dto.setImage(image);
+            Activity activity = BeanUtils.copyBean(dto, Activity.class);
+            activityService.save(activity);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return R.error("系统错误！！！");
+        }
+        return R.ok();
+    }
+
+
+    @DeleteMapping("/activity/delete/{id}")
+    public R deleteActivity(@PathVariable Long id){
+        boolean b = activityService.removeById(id);
+        if (!b){
+            return R.error("系统错误！！！");
+        }
+        return R.ok();
+    }
+
+    @GetMapping("/activityList")
+    public R activityList(){
+        List<Activity> list = activityService.list();
+        return R.ok().put("list",list);
+    }
+
+    @PostMapping("/activity/{id}")
+    public R activity(@PathVariable Long id){
+        List<ActivityUser> list = activityUserService.lambdaQuery().eq(ActivityUser::getActivityId, id).list();
+        if (CollUtils.isEmpty(list)){
+            return R.ok("无人员参加");
+        }
+        Set<Long> collect = list.stream().map(ActivityUser::getUserId).collect(Collectors.toSet());
+        List<SUser> userList = userService.getBaseMapper().selectBatchIds(collect);
+        Map<Long, SUser> collect1 = userList.stream().collect(Collectors.toMap(SUser::getId, item -> item));
+        List<ActivityVO> voList = new ArrayList<>();
+        for (ActivityUser user : list) {
+            ActivityVO vo = new ActivityVO();
+            voList.add(vo);
+            vo.setUsername(collect1.get(user.getUserId()).getUsername());
+            vo.setClassName(collect1.get(user.getUserId()).getClassName());
+            vo.setPhone(collect1.get(user.getUserId()).getPhone());
+        }
+        return R.ok().put("list",voList);
     }
 
 }

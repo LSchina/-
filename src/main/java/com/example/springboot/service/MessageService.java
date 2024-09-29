@@ -37,4 +37,6 @@ public interface MessageService extends IService<Message> {
     PageDTO<Message> newList(CommunityQuery query);
 
     PageDTO<MessageVO> backmessagePage(MessageQuery query);
+
+    PageDTO<MessageVO> adminNotice(MessageQuery query);
 }

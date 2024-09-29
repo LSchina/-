@@ -11,4 +11,6 @@ public class MessageQuery extends PageQuery {
 
     private String title;
 
+    private Integer type;
+
 }
